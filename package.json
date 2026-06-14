@@ -1,6 +1,6 @@
 {
   "name": "openterm",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Open-source SSH + FTP/SFTP desktop client",
   "main": "./out/main/index.js",
   "license": "MIT",
