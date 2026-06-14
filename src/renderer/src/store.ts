@@ -46,12 +46,18 @@ export type ModalState =
       resolve: (value: string | null) => void
     }
 
+export type DashboardTab = 'servers' | 'groups'
+
 interface AppState {
   settings: AppSettings
   servers: PublicServer[]
   secureAvailable: boolean
+  drives: string[]
   tabs: Tab[]
   activeTabId: string | null
+  /** When true, the content area shows the dashboard instead of the active tab. */
+  showDashboard: boolean
+  dashboardTab: DashboardTab
   transfers: Transfer[]
   filesPaths: Record<string, { localPath: string; remotePath: string }>
   modal: ModalState
@@ -59,7 +65,10 @@ interface AppState {
   loadSettings: () => Promise<void>
   saveSettings: (patch: Partial<AppSettings>) => Promise<void>
   loadServers: () => Promise<void>
+  loadDrives: () => Promise<void>
   setSecureAvailable: (v: boolean) => void
+  showDashboardView: () => void
+  setDashboardTab: (t: DashboardTab) => void
   addTab: (t: Tab) => void
   closeTab: (id: string) => void
   setActiveTab: (id: string) => void
@@ -85,8 +94,11 @@ export const useStore = create<AppState>((set, get) => ({
   settings: { appName: 'OpenTerm' },
   servers: [],
   secureAvailable: false,
+  drives: [],
   tabs: [],
   activeTabId: null,
+  showDashboard: true,
+  dashboardTab: 'servers',
   transfers: [],
   filesPaths: {},
   modal: null,
@@ -103,9 +115,17 @@ export const useStore = create<AppState>((set, get) => ({
     const servers = await window.bridge.servers.list()
     set({ servers })
   },
+  loadDrives: async () => {
+    const drives = await window.bridge.local.drives()
+    set({ drives })
+  },
   setSecureAvailable: (v) => set({ secureAvailable: v }),
 
-  addTab: (t) => set((s) => ({ tabs: [...s.tabs, t], activeTabId: t.id })),
+  showDashboardView: () => set({ showDashboard: true }),
+  setDashboardTab: (t) => set({ dashboardTab: t }),
+
+  // Opening a tab always brings it to the foreground (hides the dashboard).
+  addTab: (t) => set((s) => ({ tabs: [...s.tabs, t], activeTabId: t.id, showDashboard: false })),
 
   closeTab: (id) => {
     const tab = get().tabs.find((x) => x.id === id)
@@ -123,7 +143,7 @@ export const useStore = create<AppState>((set, get) => ({
     })
   },
 
-  setActiveTab: (id) => set({ activeTabId: id }),
+  setActiveTab: (id) => set({ activeTabId: id, showDashboard: false }),
 
   updateTab: (id, patch) =>
     set((s) => ({ tabs: s.tabs.map((t) => (t.id === id ? { ...t, ...patch } : t)) })),

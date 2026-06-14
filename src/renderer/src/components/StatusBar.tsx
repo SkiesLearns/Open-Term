@@ -12,9 +12,10 @@ const STATE_LABEL: Record<string, string> = {
 export function StatusBar(): React.JSX.Element {
   const tabs = useStore((s) => s.tabs)
   const activeTabId = useStore((s) => s.activeTabId)
+  const showDashboard = useStore((s) => s.showDashboard)
   const transfers = useStore((s) => s.transfers)
   const filesPaths = useStore((s) => s.filesPaths)
-  const tab = tabs.find((t) => t.id === activeTabId)
+  const tab = showDashboard ? undefined : tabs.find((t) => t.id === activeTabId)
 
   const [speed, setSpeed] = useState(0)
   const sample = useRef({ bytes: 0, at: Date.now() })
@@ -48,7 +49,7 @@ export function StatusBar(): React.JSX.Element {
           )}
         </>
       ) : (
-        <span className="status-state muted">No active session</span>
+        <span className="status-state muted">{showDashboard ? 'Dashboard' : 'No active session'}</span>
       )}
       <span className="status-spacer" />
       {(activeCount > 0 || queuedCount > 0) && (

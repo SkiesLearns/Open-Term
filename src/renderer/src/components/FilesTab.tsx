@@ -41,6 +41,10 @@ interface PaneProps {
   atRoot: boolean
   connected: boolean
   transferLabel: string
+  /** Local pane only: available drive roots (e.g. "C:\\", "D:\\"). */
+  drives?: string[]
+  currentDrive?: string
+  onPickDrive?: (root: string) => void
   onNavigate: (path: string) => void
   onUp: () => void
   onRefresh: () => void
@@ -107,6 +111,23 @@ function Pane(p: PaneProps): React.JSX.Element {
           />
         </form>
       </div>
+      {p.drives && p.drives.length > 1 && (
+        <div className="drive-bar" title="Switch drive">
+          {p.drives.map((d) => {
+            const label = d.replace(/[\\/]+$/, '') || d
+            return (
+              <button
+                key={d}
+                className={`drive-chip ${p.currentDrive === d ? 'active' : ''}`}
+                title={`Go to ${label}`}
+                onClick={() => p.onPickDrive?.(d)}
+              >
+                {label}
+              </button>
+            )
+          })}
+        </div>
+      )}
       <div className="pane-tools">
         <button className="btn btn-sm" onClick={p.onUp} disabled={p.atRoot} title="Parent directory">
           ↑ Up
@@ -206,6 +227,7 @@ export function FilesTab({ tab, active }: { tab: Tab; active: boolean }): React.
   const paths = useStore((s) => s.filesPaths[tab.id])
   const setFilesPaths = useStore((s) => s.setFilesPaths)
   const promptText = useStore((s) => s.promptText)
+  const drives = useStore((s) => s.drives)
   const [local, setLocal] = useState<PaneData>({ entries: [], loading: false })
   const [remote, setRemote] = useState<PaneData>({ entries: [], loading: false })
   const [localSel, setLocalSel] = useState<Set<string>>(new Set())
@@ -214,6 +236,10 @@ export function FilesTab({ tab, active }: { tab: Tab; active: boolean }): React.
   const connected = tab.status === 'connected'
   const localPath = paths?.localPath ?? ''
   const remotePath = paths?.remotePath ?? '/'
+  // Match the local path's drive letter against a known drive root (Windows).
+  const currentDrive = /^[a-zA-Z]:/.test(localPath)
+    ? drives.find((d) => d.toUpperCase().startsWith(localPath.slice(0, 2).toUpperCase()))
+    : undefined
 
   const loadLocal = useCallback(async (path: string): Promise<void> => {
     setLocal((prev) => ({ ...prev, loading: true }))
@@ -388,6 +414,9 @@ export function FilesTab({ tab, active }: { tab: Tab; active: boolean }): React.
           atRoot={isLocalRoot(localPath)}
           connected={true}
           transferLabel="Upload →"
+          drives={drives}
+          currentDrive={currentDrive}
+          onPickDrive={(root) => setFilesPaths(tab.id, { localPath: root })}
           onNavigate={(p) => setFilesPaths(tab.id, { localPath: p })}
           onUp={() => setFilesPaths(tab.id, { localPath: localParent(localPath) })}
           onRefresh={() => void loadLocal(localPath)}

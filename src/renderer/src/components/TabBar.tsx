@@ -3,17 +3,26 @@ import { useStore } from '../store'
 export function TabBar(): React.JSX.Element {
   const tabs = useStore((s) => s.tabs)
   const activeTabId = useStore((s) => s.activeTabId)
+  const showDashboard = useStore((s) => s.showDashboard)
   const setActiveTab = useStore((s) => s.setActiveTab)
+  const showDashboardView = useStore((s) => s.showDashboardView)
   const closeTab = useStore((s) => s.closeTab)
   const openServerModal = useStore((s) => s.openServerModal)
 
   return (
     <div className="tabbar">
+      <button
+        className={`tab-home ${showDashboard ? 'active' : ''}`}
+        title="Dashboard"
+        onClick={showDashboardView}
+      >
+        ⌂
+      </button>
       <div className="tabs">
         {tabs.map((t) => (
           <div
             key={t.id}
-            className={`tab ${t.id === activeTabId ? 'active' : ''}`}
+            className={`tab ${!showDashboard && t.id === activeTabId ? 'active' : ''}`}
             onClick={() => setActiveTab(t.id)}
             onAuxClick={(e) => {
               if (e.button === 1) closeTab(t.id)

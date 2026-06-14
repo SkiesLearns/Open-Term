@@ -40,6 +40,7 @@ const api: BridgeAPI = {
   },
   local: {
     home: () => ipcRenderer.invoke('local:home'),
+    drives: () => ipcRenderer.invoke('local:drives'),
     list: (path) => ipcRenderer.invoke('local:list', path),
     stat: (path) => ipcRenderer.invoke('local:stat', path),
     mkdir: (path) => ipcRenderer.invoke('local:mkdir', path),

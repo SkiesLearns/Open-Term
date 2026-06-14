@@ -52,6 +52,7 @@ export interface BridgeAPI {
   }
   local: {
     home(): Promise<string>
+    drives(): Promise<string[]>
     list(path: string): Promise<ListResult>
     stat(path: string): Promise<{ ok: boolean; error?: string; size?: number; isDir?: boolean }>
     mkdir(path: string): Promise<OpResult>

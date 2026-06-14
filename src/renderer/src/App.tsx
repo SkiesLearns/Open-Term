@@ -9,26 +9,12 @@ import { StatusBar } from './components/StatusBar'
 import { ServerModal } from './components/ServerModal'
 import { PromptModal } from './components/PromptModal'
 import { SettingsModal } from './components/SettingsModal'
-
-function Welcome(): React.JSX.Element {
-  const appName = useStore((s) => s.settings.appName)
-  const openServerModal = useStore((s) => s.openServerModal)
-  return (
-    <div className="welcome">
-      <div className="welcome-logo" />
-      <h1>{appName}</h1>
-      <p>SSH terminals and FTP/SFTP file transfers, side by side.</p>
-      <button className="btn btn-primary" onClick={() => openServerModal()}>
-        + New connection
-      </button>
-      <p className="welcome-hint">or pick a saved server from the sidebar</p>
-    </div>
-  )
-}
+import { Dashboard } from './components/Dashboard'
 
 export default function App(): React.JSX.Element {
   const tabs = useStore((s) => s.tabs)
   const activeTabId = useStore((s) => s.activeTabId)
+  const showDashboard = useStore((s) => s.showDashboard)
   const modal = useStore((s) => s.modal)
   const appName = useStore((s) => s.settings.appName)
   const openSettingsModal = useStore((s) => s.openSettingsModal)
@@ -36,6 +22,7 @@ export default function App(): React.JSX.Element {
   useEffect(() => {
     void useStore.getState().loadSettings()
     void useStore.getState().loadServers()
+    void useStore.getState().loadDrives()
     void window.bridge.servers.secureAvailable().then((v) => useStore.getState().setSecureAvailable(v))
 
     const offData = window.bridge.events.onSshData(({ id, data }) => registry.get(id)?.write(data))
@@ -79,14 +66,14 @@ export default function App(): React.JSX.Element {
         <div className="main">
           <TabBar />
           <div className="content">
-            {tabs.length === 0 && <Welcome />}
             {tabs.map((t) =>
               t.kind === 'ssh' ? (
-                <TerminalView key={t.id} tab={t} active={t.id === activeTabId} />
+                <TerminalView key={t.id} tab={t} active={!showDashboard && t.id === activeTabId} />
               ) : (
-                <FilesTab key={t.id} tab={t} active={t.id === activeTabId} />
+                <FilesTab key={t.id} tab={t} active={!showDashboard && t.id === activeTabId} />
               )
             )}
+            {(showDashboard || tabs.length === 0) && <Dashboard />}
           </div>
           <StatusBar />
         </div>

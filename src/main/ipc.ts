@@ -196,6 +196,19 @@ export function registerIpc(): void {
 
   // ---- local filesystem ----
   ipcMain.handle('local:home', () => homedir())
+  ipcMain.handle('local:drives', async () => {
+    if (process.platform !== 'win32') return ['/']
+    const letters = Array.from({ length: 26 }, (_, i) => `${String.fromCharCode(65 + i)}:\\`)
+    const present = await Promise.all(
+      letters.map((root) =>
+        fs
+          .access(root)
+          .then(() => root)
+          .catch(() => null)
+      )
+    )
+    return present.filter((d): d is string => d !== null)
+  })
   ipcMain.handle('local:list', async (_e, path: string) => {
     try {
       const abs = resolve(path)

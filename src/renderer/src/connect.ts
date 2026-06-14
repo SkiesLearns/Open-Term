@@ -2,22 +2,51 @@ import { useStore, type Tab, type TabConnect } from './store'
 import { registry } from './terminalRegistry'
 import type { AdhocParams, Protocol, PublicServer } from '../../shared/types'
 
-function openTab(connect: TabConnect, protocol: Protocol, title: string, host: string): void {
+/** What to open for a server: a terminal, a file browser, or both at once. */
+export type OpenMode = 'ssh' | 'files' | 'both'
+
+/** A terminal needs a shell, so it only applies to SSH-capable hosts. */
+export function serverCanSsh(server: PublicServer): boolean {
+  return server.protocol === 'ssh' || server.protocol === 'sftp'
+}
+
+/** File transfers over an SSH host use SFTP; FTP hosts keep their protocol. */
+function fileProtocol(server: PublicServer): Protocol {
+  return server.protocol === 'ssh' ? 'sftp' : server.protocol
+}
+
+/** What a one-click connect opens by default (matches how the server was saved). */
+function nativeMode(server: PublicServer): OpenMode {
+  return server.protocol === 'ssh' ? 'ssh' : 'files'
+}
+
+function openConnection(
+  kind: Tab['kind'],
+  protocol: Protocol,
+  connect: TabConnect,
+  title: string,
+  host: string
+): string {
   const id = crypto.randomUUID()
-  const kind: Tab['kind'] = protocol === 'ssh' ? 'ssh' : 'files'
   useStore.getState().addTab({ id, kind, protocol, title, host, status: 'connecting', connect })
   // SSH connects from TerminalView once the terminal is mounted and measured;
   // file sessions can connect immediately.
   if (kind === 'files') void connectFiles(id)
+  return id
 }
 
-export function openTabForServer(server: PublicServer, password?: string, passphrase?: string): void {
-  openTab({ serverId: server.id, password, passphrase }, server.protocol, server.name, server.host)
+/** Open the requested tab(s) for a server with a connect blob already resolved. */
+function openTabs(server: PublicServer, mode: OpenMode, connect: TabConnect): string[] {
+  const wantSsh = (mode === 'ssh' || mode === 'both') && serverCanSsh(server)
+  const wantFiles = mode === 'files' || mode === 'both'
+  const ids: string[] = []
+  if (wantSsh) ids.push(openConnection('ssh', 'ssh', { ...connect }, server.name, server.host))
+  if (wantFiles) ids.push(openConnection('files', fileProtocol(server), { ...connect }, server.name, server.host))
+  return ids
 }
 
-/** Sidebar one-click connect: prompts for a password when none is stored. */
-export async function connectSaved(server: PublicServer): Promise<void> {
-  let password: string | undefined
+/** Prompt for a password only when one is needed and none is stored. */
+async function resolveSecret(server: PublicServer): Promise<{ password?: string; cancelled: boolean }> {
   if (server.authType === 'password' && !server.hasPassword) {
     const v = await useStore.getState().promptText({
       title: `Connect to ${server.name}`,
@@ -25,14 +54,55 @@ export async function connectSaved(server: PublicServer): Promise<void> {
       password: true,
       submitLabel: 'Connect'
     })
-    if (v === null) return
-    password = v
+    if (v === null) return { cancelled: true }
+    return { password: v, cancelled: false }
   }
-  openTabForServer(server, password)
+  return { cancelled: false }
+}
+
+/**
+ * Open SSH, files, or both for a single server (dashboard / sidebar).
+ * Prompts once for a password if required and reuses it for both sessions.
+ */
+export async function openServer(server: PublicServer, mode: OpenMode): Promise<void> {
+  const wantSsh = (mode === 'ssh' || mode === 'both') && serverCanSsh(server)
+  const wantFiles = mode === 'files' || mode === 'both'
+  if (!wantSsh && !wantFiles) return
+  const secret = await resolveSecret(server)
+  if (secret.cancelled) return
+  const ids = openTabs(server, mode, { serverId: server.id, password: secret.password })
+  if (ids[0]) useStore.getState().setActiveTab(ids[0])
+}
+
+/** Bulk-open every server in a group; focuses the first session opened. */
+export async function openGroup(servers: PublicServer[], mode: OpenMode): Promise<void> {
+  let first: string | undefined
+  for (const server of servers) {
+    const wantSsh = (mode === 'ssh' || mode === 'both') && serverCanSsh(server)
+    const wantFiles = mode === 'files' || mode === 'both'
+    if (!wantSsh && !wantFiles) continue
+    const secret = await resolveSecret(server)
+    if (secret.cancelled) continue // skip this one, keep opening the rest
+    const ids = openTabs(server, mode, { serverId: server.id, password: secret.password })
+    first ??= ids[0]
+  }
+  if (first) useStore.getState().setActiveTab(first)
+}
+
+/** Open a server using a password already in hand (e.g. straight after saving). */
+export function openTabForServer(server: PublicServer, password?: string, passphrase?: string): void {
+  const ids = openTabs(server, nativeMode(server), { serverId: server.id, password, passphrase })
+  if (ids[0]) useStore.getState().setActiveTab(ids[0])
+}
+
+/** Sidebar one-click connect: opens however the server was saved. */
+export async function connectSaved(server: PublicServer): Promise<void> {
+  await openServer(server, nativeMode(server))
 }
 
 export function connectAdhoc(params: AdhocParams, password?: string, passphrase?: string): void {
-  openTab({ params, password, passphrase }, params.protocol, `${params.username}@${params.host}`, params.host)
+  const kind: Tab['kind'] = params.protocol === 'ssh' ? 'ssh' : 'files'
+  openConnection(kind, params.protocol, { params, password, passphrase }, `${params.username}@${params.host}`, params.host)
 }
 
 /** If the key is encrypted and we have no passphrase yet, ask and retry once. */
